@@ -25,20 +25,6 @@ public class SimpleHttpsListener {
 
     private static final TimeScheduler scheduler = new TimeScheduler(200);
     private static final int CHUNKED_BUFFER_SIZE = 8192;
-    //    private static final ThreadPoolExecutor exec = new ThreadPoolExecutor(
-//        0, // corePoolSize: no threads when idle
-//        20, // maximumPoolSize: up to 20 threads
-//        60L, TimeUnit.SECONDS, // threads terminate after 60 seconds idle
-//        new LinkedBlockingQueue<>(),
-//        new NamedThreadFactory("007-http--")
-//    );
-//
-//    static {
-//        // Allow core threads to time out as well
-//        exec.allowCoreThreadTimeOut(true);
-//    }
-
-
     private static int httpsPort = 9007;
     private static int httpPort = 6007;
 
@@ -92,26 +78,6 @@ public class SimpleHttpsListener {
             Date executionTime = new Date();
             scheduler.submit(executionTime, () -> handleInternal(exchange));
         }
-
-        //        private void handleInternal(HttpExchange exchange) {
-//            try {
-//                String protocol = exchange.getProtocol().toLowerCase();
-//                System.out.println("[" + (exchange instanceof HttpsExchange tls ? tls.getSSLSession().getProtocol() + " " : "") + protocol + " From] " + exchange.getRemoteAddress());
-//                System.out.println("[Request] " + exchange.getRequestMethod() + " " + exchange.getRequestURI());
-//                System.out.println("[Request] " + exchange.getRequestHeaders().entrySet());
-//
-//                // TODO instead of hardcoded response, send the request to foobar:1234 and set the response to be our response
-//
-//                String response = exchange instanceof HttpsExchange ? "Hello, HTTPS!" : "Hello, HTTP!";
-//                exchange.sendResponseHeaders(200, response.length());
-//                OutputStream os = exchange.getResponseBody();
-//                os.write(response.getBytes());
-//                os.close();
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        }
-
 
         private void handleInternal(HttpExchange exchange) {
             try {

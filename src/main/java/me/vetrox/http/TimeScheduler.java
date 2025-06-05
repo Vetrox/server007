@@ -13,9 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class TimeScheduler {
 
-
     private static final ThreadFactory namedThreadFactory = new NamedThreadFactory("007-executor-");
-
     private final ScheduledExecutorService scheduler;
     private final Map<Long, ScheduledTask> scheduledTasks = new ConcurrentHashMap<>();
     private final AtomicLong idGenerator = new AtomicLong();
@@ -59,10 +57,6 @@ public class TimeScheduler {
             this.executionTime = executionTime;
         }
 
-        public void setFuture(ScheduledFuture<?> future) {
-            this.future = future;
-        }
-
         public Date getExecutionTime() {
             return executionTime;
         }
@@ -73,6 +67,10 @@ public class TimeScheduler {
 
         public ScheduledFuture<?> getFuture() {
             return future;
+        }
+
+        public void setFuture(ScheduledFuture<?> future) {
+            this.future = future;
         }
 
         @Override
