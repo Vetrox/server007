@@ -21,7 +21,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import org.apache.commons.lang3.StringUtils;
 
-public class SimpleHttpsListener {
+public class Server007 {
 
     private static final TimeScheduler scheduler = new TimeScheduler(200);
     private static final int CHUNKED_BUFFER_SIZE = 8192;
