@@ -85,53 +85,31 @@ public class Server007 {
                 System.out.println("[Request " + (exchange instanceof HttpsExchange tls ? tls.getSSLSession().getProtocol() + " " : "") + protocol + "] From " + exchange.getRemoteAddress());
                 System.out.println("[Request] " + exchange.getRequestMethod() + " " + exchange.getRequestURI());
                 System.out.println("[Request] " + exchange.getRequestHeaders().entrySet());
-
-                String spec = getSpec(exchange);
-                if (spec == null) {
-                    return;
+                forward result = null;
+                try {
+                    result = getForward(exchange, false);
+                } catch (javax.net.ssl.SSLException e) {
+                    // fallback: use http
+                    System.err.println("[SSLException] Downgrading to HTTP due to SSL error: " + e.getMessage());
+                    result = getForward(exchange, true);
                 }
 
-                URL url = new URL(spec);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod(exchange.getRequestMethod());
-
-                // Copy headers
-                for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
-                    for (String value : header.getValue()) {
-                        conn.addRequestProperty(header.getKey(), value);
-                    }
-                }
-
-                // If there's a request body, forward it
-                if (exchange.getRequestMethod().equalsIgnoreCase("POST") ||
-                    exchange.getRequestMethod().equalsIgnoreCase("PUT") ||
-                    exchange.getRequestMethod().equalsIgnoreCase("PATCH")) {
-                    conn.setDoOutput(true);
-                    try (InputStream is = exchange.getRequestBody();
-                        OutputStream os = conn.getOutputStream()) {
-                        is.transferTo(os);
-                    }
-                }
-
-                // Get response
-                int responseCode = waitForResponse(conn);
-
-                String responseProtocol = conn.getHeaderField(null); // e.g., "HTTP/1.1 200 OK"
+                String responseProtocol = result.conn().getHeaderField(null); // e.g., "HTTP/1.1 200 OK"
                 if (responseProtocol == null) {
-                    responseProtocol = "HTTP/1.1 " + responseCode;
+                    responseProtocol = "HTTP/1.1 " + result.responseCode();
                 }
-                String remoteHost = url.getHost() + (url.getPort() != -1 ? ":" + url.getPort() : "");
+                String remoteHost = result.url().getHost() + (result.url().getPort() != -1 ? ":" + result.url().getPort() : "");
                 System.out.println("[Response " + protocol + "] From " + remoteHost);
                 System.out.println("[Response] " + responseProtocol);
-                System.out.println("[Response] " + conn.getHeaderFields());
+                System.out.println("[Response] " + result.conn().getHeaderFields());
 
-                InputStream remoteResponseStream = (responseCode >= 400)
-                    ? conn.getErrorStream()
-                    : conn.getInputStream();
+                InputStream remoteResponseStream = (result.responseCode() >= 400)
+                    ? result.conn().getErrorStream()
+                    : result.conn().getInputStream();
 
                 // Copy response headers
                 Headers responseHeaders = exchange.getResponseHeaders();
-                Map<String, List<String>> remoteHeaders = conn.getHeaderFields();
+                Map<String, List<String>> remoteHeaders = result.conn().getHeaderFields();
                 if (remoteHeaders != null) {
                     for (Map.Entry<String, List<String>> header : remoteHeaders.entrySet()) {
                         if (header.getKey() != null && header.getValue() != null) {
@@ -142,7 +120,7 @@ public class Server007 {
 
                 // Decide on content length or chunked streaming
                 long contentLength = -1;
-                String contentLengthHeader = conn.getHeaderField("Content-Length");
+                String contentLengthHeader = result.conn().getHeaderField("Content-Length");
                 if (contentLengthHeader != null) {
                     try {
                         contentLength = Long.parseLong(contentLengthHeader);
@@ -152,9 +130,9 @@ public class Server007 {
 
                 // Send response headers accordingly
                 if (contentLength >= 0) {
-                    exchange.sendResponseHeaders(responseCode, contentLength);
+                    exchange.sendResponseHeaders(result.responseCode(), contentLength);
                 } else {
-                    exchange.sendResponseHeaders(responseCode, 0); // enables chunked streaming
+                    exchange.sendResponseHeaders(result.responseCode(), 0); // enables chunked streaming
                 }
 
                 // Stream the response
@@ -189,17 +167,52 @@ public class Server007 {
             }
         }
 
+        private forward getForward(HttpExchange exchange, boolean downgradeToHttp) throws IOException {
+            String spec = getSpec(exchange, downgradeToHttp);
+
+            URL url = new URL(spec);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod(exchange.getRequestMethod());
+
+            // Copy headers
+            for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
+                for (String value : header.getValue()) {
+                    conn.addRequestProperty(header.getKey(), value);
+                }
+            }
+
+            // If there's a request body, forward it
+            if (exchange.getRequestMethod().equalsIgnoreCase("POST") ||
+                exchange.getRequestMethod().equalsIgnoreCase("PUT") ||
+                exchange.getRequestMethod().equalsIgnoreCase("PATCH")) {
+                conn.setDoOutput(true);
+                try (InputStream is = exchange.getRequestBody();
+                    OutputStream os = conn.getOutputStream()) {
+                    is.transferTo(os);
+                }
+            }
+
+            // Get response
+            int responseCode = waitForResponse(conn);
+            forward result = new forward(url, conn, responseCode);
+            return result;
+        }
+
+        private record forward(URL url, HttpURLConnection conn, int responseCode) {
+
+        }
+
         private int waitForResponse(HttpURLConnection conn) throws IOException {
             return conn.getResponseCode();
         }
 
-        private String getSpec(HttpExchange exchange) {
+        private String getSpec(HttpExchange exchange, boolean downgradeToHttp) {
             String host = exchange.getRequestHeaders().getFirst("X-proxy007-host");
             if (StringUtils.isBlank(host)) {
-                System.out.println("[ERROR] host wasn't set");
-                return null;
+//                System.out.println("[ERROR] host wasn't set. Assuming localhost");
+                host = "localhost";
             }
-            String spec = (exchange instanceof HttpsExchange ? "https" : "http") + "://" + host;
+            String spec = (!downgradeToHttp && exchange instanceof HttpsExchange ? "https" : "http") + "://" + host;
 
             String port = exchange.getRequestHeaders().getFirst("X-proxy007-port");
             if (!StringUtils.isBlank(port) && isParsableToInt(port)) {
