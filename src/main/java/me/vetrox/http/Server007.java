@@ -169,6 +169,7 @@ public class Server007 {
 
         private forward getForward(HttpExchange exchange, boolean downgradeToHttp) throws IOException {
             String spec = getSpec(exchange, downgradeToHttp);
+            System.out.println("[Forward] To " + spec);
 
             URL url = new URL(spec);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
